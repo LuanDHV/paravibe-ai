@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+python-dotenv
+
+torch
+transformers
+sentence-transformers
+torchaudio
+librosa
+soundfile
+numpy
+pandas

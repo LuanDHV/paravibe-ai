@@ -1,10 +1,10 @@
+torch==2.1.0+cpu
 fastapi
 uvicorn
 sqlalchemy
 pymysql
 python-dotenv
 
-torch
 transformers
 sentence-transformers
 torchaudio

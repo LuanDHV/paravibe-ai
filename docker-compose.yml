@@ -1,0 +1,16 @@
+services:
+  paravibe-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: paravibe-ai
+    restart: always
+    env_file: .env
+    ports:
+      - "8000:8000"
+    networks:
+      - paravibe-be_paravibe-network
+
+networks:
+  paravibe-be_paravibe-network:
+    external: true

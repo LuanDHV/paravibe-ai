@@ -42,13 +42,13 @@ class AudioEmbedder:
     def preprocess_audio(self, audio_path: str, target_sr: int = 24000) -> torch.Tensor:
         """Load and preprocess audio file"""
         try:
-            # Load audio
+            # Tải âm thanh
             audio, sr = librosa.load(audio_path, sr=target_sr, mono=True)
 
-            # Convert to tensor
+            # Chuyển đổi thành tensor
             audio_tensor = torch.from_numpy(audio).float()
 
-            # Process with MERT processor
+            # Xử lý với bộ xử lý MERT
             inputs = self.processor(
                 audio_tensor, sampling_rate=target_sr, return_tensors="pt"
             )
@@ -64,13 +64,13 @@ class AudioEmbedder:
         try:
             start_time = time.time()
 
-            # Preprocess audio
+            # Tiền xử lý âm thanh
             inputs = self.preprocess_audio(audio_path)
 
-            # Get embeddings
+            # Lấy embedding
             with torch.no_grad():
                 outputs = self.model(**inputs)
-                # Use mean pooling of last hidden state
+                # Sử dụng mean pooling của trạng thái ẩn cuối cùng
                 embedding = (
                     outputs.last_hidden_state.mean(dim=1).squeeze().cpu().numpy()
                 )
@@ -97,7 +97,7 @@ class AudioEmbedder:
         return embeddings
 
 
-# Global instance for caching
+# Instance toàn cục để lưu cache
 _audio_embedder: Optional[AudioEmbedder] = None
 
 

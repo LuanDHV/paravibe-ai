@@ -5,7 +5,7 @@ import uvicorn
 
 from .routers.embed_router import router as embed_router
 
-# Configure logging
+# Cấu hình ghi log
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -16,17 +16,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS middleware
+# Middleware CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"],  # Cấu hình phù hợp cho sản xuất
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(embed_router)
+# Bao gồm các router
+app.include_router(embed_router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -34,7 +34,7 @@ def root():
     return {"message": "Paravibe AI Service running"}
 
 
-@app.get("/health")
+@app.get("/api/v1/health")
 def health_check():
     return {"status": "healthy"}
 

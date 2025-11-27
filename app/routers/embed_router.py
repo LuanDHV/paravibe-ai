@@ -77,7 +77,7 @@ async def embed_song(request: SongEmbedRequest, db: Session = Depends(get_db)):
     try:
         start_time = time.time()
 
-        # Get song from database
+        # Lấy bài hát từ cơ sở dữ liệu
         song = db.query(Song).filter(Song.id == request.song_id).first()
         if not song:
             raise HTTPException(status_code=404, detail="Song not found")
@@ -85,7 +85,7 @@ async def embed_song(request: SongEmbedRequest, db: Session = Depends(get_db)):
         audio_embedding = None
         lyrics_embedding = None
 
-        # Extract audio embedding if audio_url exists
+        # Trích xuất embedding âm thanh nếu audio_url tồn tại
         if song.audio_url:
             try:
                 audio_embedder = get_audio_embedder()
@@ -95,7 +95,7 @@ async def embed_song(request: SongEmbedRequest, db: Session = Depends(get_db)):
                     f"Audio embedding failed for song {request.song_id}: {e}"
                 )
 
-        # Extract lyrics embedding if lyrics exist
+        # Trích xuất embedding lời bài hát nếu lời bài hát tồn tại
         if song.lyrics:
             try:
                 lyrics_embedder = get_lyrics_embedder()
@@ -140,7 +140,7 @@ async def embed_batch(request: BatchEmbedRequest):
             audio_emb = None
             lyrics_emb = None
 
-            # Extract audio embedding
+            # Trích xuất embedding âm thanh
             if song_data.audio_url:
                 try:
                     audio_emb = audio_embedder.get_embedding(
@@ -149,7 +149,7 @@ async def embed_batch(request: BatchEmbedRequest):
                 except Exception as e:
                     logger.warning(f"Audio embedding failed for {song_data.title}: {e}")
 
-            # Extract lyrics embedding
+            # Trích xuất embedding lời bài hát
             if song_data.lyrics:
                 try:
                     lyrics_emb = lyrics_embedder.get_embedding(
@@ -181,19 +181,19 @@ async def embed_batch(request: BatchEmbedRequest):
         raise HTTPException(status_code=500, detail=f"Batch embedding failed: {str(e)}")
 
 
-# Additional endpoints for recommendations
+# Các endpoint bổ sung cho khuyến nghị
 @router.post("/recommend/song/{song_id}")
 async def get_song_recommendations(
     song_id: int, top_k: int = 5, db: Session = Depends(get_db)
 ):
     """Get song recommendations based on audio and lyrics similarity"""
     try:
-        # Get target song
+        # Lấy bài hát mục tiêu
         target_song = db.query(Song).filter(Song.id == song_id).first()
         if not target_song:
             raise HTTPException(status_code=404, detail="Song not found")
 
-        # Get all songs with embeddings
+        # Lấy tất cả bài hát có embedding
         all_songs = (
             db.query(Song)
             .filter(Song.audio_vector.isnot(None) | Song.lyric_vector.isnot(None))
@@ -203,7 +203,7 @@ async def get_song_recommendations(
         if not all_songs:
             return {"recommendations": []}
 
-        # Prepare target vectors
+        # Chuẩn bị các vector mục tiêu
         target_audio = (
             json.loads(target_song.audio_vector) if target_song.audio_vector else None
         )
@@ -220,7 +220,7 @@ async def get_song_recommendations(
             score = 0.0
             count = 0
 
-            # Audio similarity
+            # Độ tương tự âm thanh
             if target_audio and song.audio_vector:
                 song_audio = json.loads(song.audio_vector)
                 audio_sim = cosine_similarity(
@@ -229,7 +229,7 @@ async def get_song_recommendations(
                 score += audio_sim
                 count += 1
 
-            # Lyrics similarity
+            # Độ tương tự lời bài hát
             if target_lyrics and song.lyric_vector:
                 song_lyrics = json.loads(song.lyric_vector)
                 lyrics_sim = cosine_similarity(
@@ -242,7 +242,7 @@ async def get_song_recommendations(
                 avg_score = score / count
                 recommendations.append({"song_id": song.id, "score": avg_score})
 
-        # Sort by score descending and take top_k
+        # Sắp xếp theo điểm giảm dần và lấy top_k
         recommendations.sort(key=lambda x: x["score"], reverse=True)
         recommendations = recommendations[:top_k]
 

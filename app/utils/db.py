@@ -6,17 +6,16 @@ from sqlalchemy import (
     Text,
     Float,
     DateTime,
-    ForeignKey,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(".env.local")
 
-# Database configuration
+# Cấu hình cơ sở dữ liệu
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 DB_USER = os.getenv("DB_USER")
@@ -42,8 +41,8 @@ class Song(Base):
     audio_url = Column(String(500))
     genre = Column(String(100))
     lyrics = Column(Text)
-    audio_vector = Column(Text)  # JSON string of 768-dim vector
-    lyric_vector = Column(Text)  # JSON string of 384-dim vector
+    audio_vector = Column(Text)  # Chuỗi JSON của vector 768 chiều
+    lyric_vector = Column(Text)  # Chuỗi JSON của vector 384 chiều
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

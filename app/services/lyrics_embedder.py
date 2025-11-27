@@ -32,7 +32,7 @@ class LyricsEmbedder:
         try:
             start_time = time.time()
 
-            # Get embedding
+            # Lấy embedding
             embedding = self.model.encode(text, convert_to_numpy=True)
 
             processing_time = time.time() - start_time
@@ -61,7 +61,7 @@ class LyricsEmbedder:
             raise
 
 
-# Global instance for caching
+# Instance toàn cục để lưu cache
 _lyrics_embedder: Optional[LyricsEmbedder] = None
 
 

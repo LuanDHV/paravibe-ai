@@ -1,4 +1,4 @@
-# Pydantic models for API
+# Các mô hình Pydantic cho API
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
@@ -34,7 +34,7 @@ class Song(SongBase):
         from_attributes = True
 
 
-# Embedding request/response models
+# Các mô hình yêu cầu/phản hồi embedding
 class AudioEmbedRequest(BaseModel):
     audio_url: str
 

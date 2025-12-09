@@ -11,3 +11,4 @@ librosa
 soundfile
 numpy
 pandas
+requests

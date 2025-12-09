@@ -73,7 +73,7 @@ async def embed_lyrics(request: LyricsEmbedRequest):
 
 @router.post("/song", response_model=SongEmbedResponse)
 async def embed_song(request: SongEmbedRequest, db: Session = Depends(get_db)):
-    """Extract both audio and lyrics embeddings for a song"""
+    """Extract both audio and lyrics embeddings for a song and save to DB"""
     try:
         start_time = time.time()
 
@@ -89,7 +89,9 @@ async def embed_song(request: SongEmbedRequest, db: Session = Depends(get_db)):
         if song.audio_url:
             try:
                 audio_embedder = get_audio_embedder()
-                audio_embedding = audio_embedder.get_embedding(song.audio_url).tolist()
+                audio_embedding = audio_embedder.get_embedding(song.audio_url)
+                # Lưu vào DB dưới dạng JSON string
+                song.audio_vector = json.dumps(audio_embedding.tolist())
             except Exception as e:
                 logger.warning(
                     f"Audio embedding failed for song {request.song_id}: {e}"
@@ -99,20 +101,31 @@ async def embed_song(request: SongEmbedRequest, db: Session = Depends(get_db)):
         if song.lyrics:
             try:
                 lyrics_embedder = get_lyrics_embedder()
-                lyrics_embedding = lyrics_embedder.get_embedding(song.lyrics).tolist()
+                lyrics_embedding = lyrics_embedder.get_embedding(song.lyrics)
+                # Lưu vào DB dưới dạng JSON string
+                song.lyric_vector = json.dumps(lyrics_embedding.tolist())
             except Exception as e:
                 logger.warning(
                     f"Lyrics embedding failed for song {request.song_id}: {e}"
                 )
 
+        # Lưu vào database
+        if audio_embedding is not None or lyrics_embedding is not None:
+            db.commit()
+            logger.info(f"Song embeddings saved to DB for song {request.song_id}")
+
         processing_time = time.time() - start_time
 
-        logger.info(f"Song embedding extracted in {processing_time:.2f}s")
+        logger.info(f"Song embedding extracted and saved in {processing_time:.2f}s")
 
         return SongEmbedResponse(
             song_id=request.song_id,
-            audio_embedding=audio_embedding,
-            lyrics_embedding=lyrics_embedding,
+            audio_embedding=(
+                audio_embedding.tolist() if audio_embedding is not None else None
+            ),
+            lyrics_embedding=(
+                lyrics_embedding.tolist() if lyrics_embedding is not None else None
+            ),
             processing_time=processing_time,
         )
 
@@ -120,6 +133,7 @@ async def embed_song(request: SongEmbedRequest, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Song embedding failed: {e}")
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Song embedding failed: {str(e)}")
 
 
@@ -182,12 +196,14 @@ async def embed_batch(request: BatchEmbedRequest):
 
 
 # Các endpoint bổ sung cho khuyến nghị
-@router.post("/recommend/song/{song_id}")
+@router.get("/recommend/song/{song_id}")
 async def get_song_recommendations(
     song_id: int, top_k: int = 5, db: Session = Depends(get_db)
 ):
     """Get song recommendations based on audio and lyrics similarity"""
     try:
+        start_time = time.time()
+
         # Lấy bài hát mục tiêu
         target_song = db.query(Song).filter(Song.id == song_id).first()
         if not target_song:
@@ -201,14 +217,26 @@ async def get_song_recommendations(
         )
 
         if not all_songs:
-            return {"recommendations": []}
+            return {
+                "song": {
+                    "song_id": target_song.id,
+                    "title": target_song.title,
+                    "artist": target_song.artist if target_song.artist else "Unknown",
+                },
+                "recommendations": [],
+                "processing_time": 0,
+            }
 
         # Chuẩn bị các vector mục tiêu
         target_audio = (
-            json.loads(target_song.audio_vector) if target_song.audio_vector else None
+            np.array(json.loads(target_song.audio_vector))
+            if target_song.audio_vector
+            else None
         )
         target_lyrics = (
-            json.loads(target_song.lyric_vector) if target_song.lyric_vector else None
+            np.array(json.loads(target_song.lyric_vector))
+            if target_song.lyric_vector
+            else None
         )
 
         recommendations = []
@@ -221,32 +249,51 @@ async def get_song_recommendations(
             count = 0
 
             # Độ tương tự âm thanh
-            if target_audio and song.audio_vector:
-                song_audio = json.loads(song.audio_vector)
-                audio_sim = cosine_similarity(
-                    np.array(target_audio), np.array(song_audio)
-                )
-                score += audio_sim
-                count += 1
+            if target_audio is not None and song.audio_vector:
+                try:
+                    song_audio = np.array(json.loads(song.audio_vector))
+                    audio_sim = cosine_similarity(target_audio, song_audio)
+                    score += audio_sim
+                    count += 1
+                except Exception as e:
+                    logger.warning(f"Error comparing audio vectors: {e}")
 
             # Độ tương tự lời bài hát
-            if target_lyrics and song.lyric_vector:
-                song_lyrics = json.loads(song.lyric_vector)
-                lyrics_sim = cosine_similarity(
-                    np.array(target_lyrics), np.array(song_lyrics)
-                )
-                score += lyrics_sim
-                count += 1
+            if target_lyrics is not None and song.lyric_vector:
+                try:
+                    song_lyrics = np.array(json.loads(song.lyric_vector))
+                    lyrics_sim = cosine_similarity(target_lyrics, song_lyrics)
+                    score += lyrics_sim
+                    count += 1
+                except Exception as e:
+                    logger.warning(f"Error comparing lyric vectors: {e}")
 
             if count > 0:
                 avg_score = score / count
-                recommendations.append({"song_id": song.id, "score": avg_score})
+                recommendations.append(
+                    {
+                        "song_id": song.id,
+                        "title": song.title,
+                        "artist": song.artist if song.artist else "Unknown",
+                        "score": float(avg_score),
+                    }
+                )
 
         # Sắp xếp theo điểm giảm dần và lấy top_k
         recommendations.sort(key=lambda x: x["score"], reverse=True)
         recommendations = recommendations[:top_k]
 
-        return {"recommendations": recommendations}
+        processing_time = time.time() - start_time
+
+        return {
+            "song": {
+                "song_id": target_song.id,
+                "title": target_song.title,
+                "artist": target_song.artist if target_song.artist else "Unknown",
+            },
+            "recommendations": recommendations,
+            "processing_time": processing_time,
+        }
 
     except HTTPException:
         raise

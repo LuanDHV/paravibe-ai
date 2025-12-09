@@ -4,6 +4,9 @@ import logging
 import uvicorn
 
 from .routers.embed_router import router as embed_router
+from .utils.db import create_tables
+
+logger = logging.getLogger(__name__)
 
 # Cấu hình ghi log
 logging.basicConfig(
@@ -27,6 +30,16 @@ app.add_middleware(
 
 # Bao gồm các router
 app.include_router(embed_router, prefix="/api/v1")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Create tables on startup"""
+    try:
+        create_tables()
+        logger.info("Database tables created/verified successfully")
+    except Exception as e:
+        logger.warning(f"Could not create/verify database tables: {e}")
 
 
 @app.get("/")

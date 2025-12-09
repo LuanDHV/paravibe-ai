@@ -6,6 +6,7 @@ from transformers import AutoProcessor, AutoModel
 import logging
 from typing import List, Optional
 import time
+from ..utils.download_audio import download_audio_from_url, cleanup_temp_audio
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +65,15 @@ class AudioEmbedder:
         try:
             start_time = time.time()
 
+            # Download audio if URL
+            local_path = audio_path
+            if audio_path.startswith(("http://", "https://")):
+                local_path = download_audio_from_url(audio_path)
+                if local_path is None:
+                    raise ValueError(f"Failed to download audio from {audio_path}")
+
             # Tiền xử lý âm thanh
-            inputs = self.preprocess_audio(audio_path)
+            inputs = self.preprocess_audio(local_path)
 
             # Lấy embedding
             with torch.no_grad():
@@ -76,7 +84,11 @@ class AudioEmbedder:
                 )
 
             processing_time = time.time() - start_time
-            logger.info(".2f")
+            logger.info(f"Audio embedding extracted in {processing_time:.2f}s")
+
+            # Cleanup temporary file if it was downloaded
+            if audio_path.startswith(("http://", "https://")):
+                cleanup_temp_audio(local_path)
 
             return embedding.astype(np.float32)
 

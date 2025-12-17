@@ -9,39 +9,57 @@ logger = logging.getLogger(__name__)
 
 def download_audio_from_url(audio_url: str, timeout: int = 30) -> Optional[str]:
     """
-    Download audio file from URL and save to temporary location
+    Tải file âm thanh từ URL và lưu vào vị trí tạm thời
 
     Args:
-        audio_url: URL of the audio file (HTTP/HTTPS)
-        timeout: Request timeout in seconds
+        audio_url: URL của file âm thanh (HTTP/HTTPS)
+        timeout: Thời gian chờ request timeout tính bằng giây
 
     Returns:
-        Path to temporary audio file, or None if download fails
+        Đường dẫn đến file âm thanh tạm thời, hoặc None nếu tải thất bại
     """
     try:
-        # Check if it's a local file path
+        # Kiểm tra xem có phải đường dẫn file local không
         if audio_url.startswith(("http://", "https://")):
             logger.info(f"Downloading audio from URL: {audio_url}")
 
-            # Download file
+            # Tải file
             response = requests.get(audio_url, timeout=timeout, stream=True)
             response.raise_for_status()
 
-            # Get file extension from URL or use mp3 as default
-            content_type = response.headers.get("content-type", "audio/mpeg")
-            ext = ".mp3"
-            if "wav" in content_type:
-                ext = ".wav"
-            elif "ogg" in content_type:
-                ext = ".ogg"
-            elif "flac" in content_type:
-                ext = ".flac"
+            # Phát hiện phần mở rộng file từ URL trước (đáng tin cậy hơn cho file M4A của iTunes)
+            ext = ".mp3"  # mặc định fallback
 
-            # Create temporary file
+            # Kiểm tra URL cho các phần mở rộng âm thanh phổ biến
+            if ".m4a" in audio_url.lower():
+                ext = ".m4a"
+            elif ".aac" in audio_url.lower():
+                ext = ".m4a"  # File AAC thường dùng container M4A
+            elif ".wav" in audio_url.lower():
+                ext = ".wav"
+            elif ".ogg" in audio_url.lower():
+                ext = ".ogg"
+            elif ".flac" in audio_url.lower():
+                ext = ".flac"
+            elif ".mp3" in audio_url.lower():
+                ext = ".mp3"
+            else:
+                # Fallback để phát hiện từ content-type
+                content_type = response.headers.get("content-type", "audio/mpeg")
+                if "wav" in content_type:
+                    ext = ".wav"
+                elif "ogg" in content_type:
+                    ext = ".ogg"
+                elif "flac" in content_type:
+                    ext = ".flac"
+                elif "aac" in content_type or "m4a" in content_type:
+                    ext = ".m4a"
+
+            # Tạo file tạm thời
             temp_dir = tempfile.gettempdir()
             temp_file = os.path.join(temp_dir, f"audio_{os.urandom(8).hex()}{ext}")
 
-            # Write to temporary file
+            # Ghi vào file tạm thời
             with open(temp_file, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
@@ -51,7 +69,7 @@ def download_audio_from_url(audio_url: str, timeout: int = 30) -> Optional[str]:
             return temp_file
 
         else:
-            # It's a local file path
+            # Đây là đường dẫn file local
             if os.path.exists(audio_url):
                 logger.info(f"Using local audio file: {audio_url}")
                 return audio_url
@@ -67,24 +85,16 @@ def download_audio_from_url(audio_url: str, timeout: int = 30) -> Optional[str]:
         return None
 
 
-def cleanup_temp_audio(file_path: str) -> bool:
+def cleanup_temp_audio(file_path: Optional[str]) -> None:
     """
-    Clean up temporary audio file
+    Dọn dẹp file âm thanh tạm thời
 
     Args:
-        file_path: Path to temporary audio file
-
-    Returns:
-        True if successfully deleted, False otherwise
+        file_path: Đường dẫn đến file tạm thời cần xóa
     """
-    try:
-        if os.path.exists(file_path) and os.path.basename(file_path).startswith(
-            "audio_"
-        ):
+    if file_path and os.path.exists(file_path):
+        try:
             os.remove(file_path)
-            logger.info(f"Temporary audio file cleaned up: {file_path}")
-            return True
-        return False
-    except Exception as e:
-        logger.error(f"Failed to cleanup temporary audio file {file_path}: {e}")
-        return False
+            logger.info(f"Cleaned up temporary file: {file_path}")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup temporary file {file_path}: {e}")

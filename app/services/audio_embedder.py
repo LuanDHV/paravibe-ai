@@ -20,7 +20,7 @@ class AudioEmbedder:
         self._load_model()
 
     def _load_model(self):
-        """Load MERT model and processor"""
+        """Tải mô hình MERT và bộ xử lý"""
         try:
             logger.info(f"Loading MERT model: {self.model_name}")
             start_time = time.time()
@@ -41,10 +41,15 @@ class AudioEmbedder:
             raise
 
     def preprocess_audio(self, audio_path: str, target_sr: int = 24000) -> torch.Tensor:
-        """Load and preprocess audio file"""
+        """Tải và tiền xử lý file âm thanh"""
         try:
-            # Tải âm thanh
-            audio, sr = librosa.load(audio_path, sr=target_sr, mono=True)
+            # Tải âm thanh với ffmpeg backend để hỗ trợ M4A/AAC
+            # sr=None để tải sample rate gốc, sau đó resample
+            audio, sr = librosa.load(audio_path, sr=None, mono=True)
+
+            # Resample nếu cần
+            if sr != target_sr:
+                audio = librosa.resample(audio, orig_sr=sr, target_sr=target_sr)
 
             # Chuyển đổi thành tensor
             audio_tensor = torch.from_numpy(audio).float()
@@ -61,7 +66,7 @@ class AudioEmbedder:
             raise
 
     def get_embedding(self, audio_path: str) -> np.ndarray:
-        """Extract 768-dim embedding from audio file"""
+        """Trích xuất embedding 768 chiều từ file âm thanh"""
         try:
             start_time = time.time()
 
@@ -97,7 +102,7 @@ class AudioEmbedder:
             raise
 
     def get_embeddings_batch(self, audio_paths: List[str]) -> List[np.ndarray]:
-        """Extract embeddings for multiple audio files"""
+        """Trích xuất embeddings cho nhiều file âm thanh"""
         embeddings = []
         for path in audio_paths:
             try:
@@ -114,7 +119,7 @@ _audio_embedder: Optional[AudioEmbedder] = None
 
 
 def get_audio_embedder() -> AudioEmbedder:
-    """Get or create cached AudioEmbedder instance"""
+    """Lấy hoặc tạo instance AudioEmbedder đã được cache"""
     global _audio_embedder
     if _audio_embedder is None:
         _audio_embedder = AudioEmbedder()

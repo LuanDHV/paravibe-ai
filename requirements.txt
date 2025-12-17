@@ -9,6 +9,10 @@ sentence-transformers
 torchaudio
 librosa
 soundfile
+audioread
+ffmpeg-python
+pydub
+nnAudio
 numpy
 pandas
 requests

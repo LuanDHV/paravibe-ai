@@ -12,7 +12,6 @@ class SongBase(BaseModel):
     image_url: Optional[str] = None
     audio_url: Optional[str] = None
     genre: Optional[str] = None
-    lyrics: Optional[str] = None
 
 
 class SongCreate(SongBase):
@@ -26,7 +25,7 @@ class SongUpdate(SongBase):
 class Song(SongBase):
     id: int
     audio_vector: Optional[List[float]] = None
-    lyric_vector: Optional[List[float]] = None
+    metadata_vector: Optional[List[float]] = None
     created_at: datetime
     updated_at: datetime
 
@@ -39,8 +38,14 @@ class AudioEmbedRequest(BaseModel):
     audio_url: str
 
 
-class LyricsEmbedRequest(BaseModel):
-    lyrics: str
+class MetadataEmbedRequest(BaseModel):
+    """Trích xuất embedding từ metadata bài hát (không phụ thuộc lyrics)"""
+
+    title: str
+    artist: str
+    genre: Optional[str] = None
+    album: Optional[str] = None
+    release_year: Optional[int] = None
 
 
 class BatchEmbedRequest(BaseModel):
@@ -64,5 +69,5 @@ class SongEmbedRequest(BaseModel):
 class SongEmbedResponse(BaseModel):
     song_id: int
     audio_embedding: Optional[List[float]] = None
-    lyrics_embedding: Optional[List[float]] = None
+    metadata_embedding: Optional[List[float]] = None
     processing_time: float

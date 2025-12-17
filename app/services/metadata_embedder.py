@@ -8,13 +8,18 @@ logger = logging.getLogger(__name__)
 
 
 class LyricsEmbedder:
+    """
+    Embedder cho text sử dụng mô hình SBERT.
+    Có thể dùng cho lyrics hoặc metadata text.
+    """
+
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.model_name = model_name
         self.model = None
         self._load_model()
 
     def _load_model(self):
-        """Load SBERT model"""
+        """Tải mô hình SBERT"""
         try:
             logger.info(f"Loading SBERT model: {self.model_name}")
             start_time = time.time()
@@ -28,7 +33,7 @@ class LyricsEmbedder:
             raise
 
     def get_embedding(self, text: str) -> np.ndarray:
-        """Extract 384-dim embedding from lyrics text"""
+        """Trích xuất embedding 384 chiều từ text"""
         try:
             start_time = time.time()
 
@@ -45,7 +50,7 @@ class LyricsEmbedder:
             raise
 
     def get_embeddings_batch(self, texts: List[str]) -> List[np.ndarray]:
-        """Extract embeddings for multiple texts"""
+        """Trích xuất embeddings cho nhiều text"""
         try:
             start_time = time.time()
 
@@ -62,12 +67,12 @@ class LyricsEmbedder:
 
 
 # Instance toàn cục để lưu cache
-_lyrics_embedder: Optional[LyricsEmbedder] = None
+_metadata_embedder: Optional[LyricsEmbedder] = None
 
 
-def get_lyrics_embedder() -> LyricsEmbedder:
-    """Get or create cached LyricsEmbedder instance"""
-    global _lyrics_embedder
-    if _lyrics_embedder is None:
-        _lyrics_embedder = LyricsEmbedder()
-    return _lyrics_embedder
+def get_metadata_embedder() -> LyricsEmbedder:
+    """Lấy hoặc tạo instance MetadataEmbedder đã được cache"""
+    global _metadata_embedder
+    if _metadata_embedder is None:
+        _metadata_embedder = LyricsEmbedder()
+    return _metadata_embedder

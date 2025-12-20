@@ -4,7 +4,7 @@ import heapq
 
 
 def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
-    """Calculate cosine similarity between two vectors"""
+    """Tính độ tương tự cosine giữa hai vector"""
     dot_product = np.dot(vec1, vec2)
     norm1 = np.linalg.norm(vec1)
     norm2 = np.linalg.norm(vec2)
@@ -22,16 +22,16 @@ def find_top_similar(
     top_k: int = 5,
 ) -> List[Tuple[int, float]]:
     """
-    Find top-k most similar vectors to query vector
+    Tìm top-k vector tương tự nhất với query vector
 
     Args:
-        query_vector: The query embedding vector
-        candidate_vectors: List of candidate embedding vectors
-        candidate_ids: Corresponding IDs for candidates
-        top_k: Number of top results to return
+        query_vector: Vector embedding truy vấn
+        candidate_vectors: Danh sách các vector ứng viên
+        candidate_ids: ID tương ứng cho từng ứng viên
+        top_k: Số kết quả hàng đầu cần trả về
 
     Returns:
-        List of (id, similarity_score) tuples, sorted by similarity descending
+        Danh sách tuple (id, similarity_score), sắp xếp giảm dần theo độ tương tự
     """
     similarities = []
 
@@ -39,7 +39,7 @@ def find_top_similar(
         sim = cosine_similarity(query_vector, vec)
         similarities.append((idx, sim))
 
-    # Get top-k using heap
+    # Lấy top-k sử dụng heap
     top_similar = heapq.nlargest(top_k, similarities, key=lambda x: x[1])
 
     return top_similar

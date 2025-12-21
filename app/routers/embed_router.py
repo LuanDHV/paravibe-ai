@@ -19,6 +19,7 @@ from ..services.audio_embedder import get_audio_embedder
 from ..services.metadata_embedder import get_metadata_embedder
 from ..utils.db import get_db, Song
 from ..utils.cosine_similarity import cosine_similarity
+from sqlalchemy.orm import joinedload
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ async def embed_song(request: SongEmbedRequest, db: Session = Depends(get_db)):
         start_time = time.time()
 
         # Lấy bài hát từ cơ sở dữ liệu
-        song = db.query(Song).filter(Song.id == request.song_id).first()
+        song = db.query(Song).filter(Song.song_id == request.song_id).first()
         if not song:
             raise HTTPException(status_code=404, detail="Song not found")
 
@@ -217,14 +218,20 @@ async def get_song_recommendations(
     try:
         start_time = time.time()
 
-        # Lấy bài hát mục tiêu
-        target_song = db.query(Song).filter(Song.id == song_id).first()
+        # Lấy bài hát mục tiêu với artist relationship
+        target_song = (
+            db.query(Song)
+            .options(joinedload(Song.artist_rel))
+            .filter(Song.song_id == song_id)
+            .first()
+        )
         if not target_song:
             raise HTTPException(status_code=404, detail="Song not found")
 
-        # Lấy tất cả bài hát có embedding
+        # Lấy tất cả bài hát có embedding với artist relationship
         all_songs = (
             db.query(Song)
+            .options(joinedload(Song.artist_rel))
             .filter(Song.audio_vector.isnot(None) | Song.metadata_vector.isnot(None))
             .all()
         )
@@ -255,7 +262,7 @@ async def get_song_recommendations(
         recommendations = []
 
         for song in all_songs:
-            if song.id == song_id:
+            if song.song_id == song_id:
                 continue
 
             # Độ tương tự âm thanh
@@ -282,7 +289,7 @@ async def get_song_recommendations(
             # Thêm vào recommendations
             recommendations.append(
                 {
-                    "song_id": song.id,
+                    "song_id": song.song_id,
                     "title": song.title,
                     "artist": song.artist if song.artist else "Unknown",
                     "score": float(weighted_score),
@@ -297,7 +304,7 @@ async def get_song_recommendations(
 
         return {
             "song": {
-                "song_id": target_song.id,
+                "song_id": target_song.song_id,
                 "title": target_song.title,
                 "artist": target_song.artist if target_song.artist else "Unknown",
             },

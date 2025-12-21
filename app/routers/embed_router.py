@@ -330,7 +330,7 @@ async def get_user_recommendations(
 ):
     """
     Lấy khuyến nghị bài hát dựa trên lịch sử nghe nhạc của user
-    
+
     Algorithm:
     1. Lấy top 20 bài hát user đã nghe gần đây
     2. Tính average audio vector và metadata vector
@@ -378,13 +378,9 @@ async def get_user_recommendations(
             )
             if song:
                 if song.audio_vector:
-                    audio_vectors.append(
-                        np.array(json.loads(song.audio_vector))
-                    )
+                    audio_vectors.append(np.array(json.loads(song.audio_vector)))
                 if song.metadata_vector:
-                    metadata_vectors.append(
-                        np.array(json.loads(song.metadata_vector))
-                    )
+                    metadata_vectors.append(np.array(json.loads(song.metadata_vector)))
 
         if not audio_vectors and not metadata_vectors:
             return {
@@ -521,7 +517,11 @@ async def get_user_top_songs(
                         "song_id": song.song_id,
                         "title": song.title,
                         "artist": song.artist if song.artist else "Unknown",
-                        "listened_at": history.listened_at.isoformat() if history.listened_at else None,
+                        "listened_at": (
+                            history.listened_at.isoformat()
+                            if history.listened_at
+                            else None
+                        ),
                         "action": history.action,
                     }
                 )

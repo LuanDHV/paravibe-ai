@@ -15,9 +15,13 @@ from ..models.song import (
     SongEmbedRequest,
     SongEmbedResponse,
 )
+from ..models.user import (
+    UserRecommendationResponse,
+    UserTopSongsResponse,
+)
 from ..services.audio_embedder import get_audio_embedder
 from ..services.metadata_embedder import get_metadata_embedder
-from ..utils.db import get_db, Song
+from ..utils.db import get_db, Song, User, UserHistory
 from ..utils.cosine_similarity import cosine_similarity
 from sqlalchemy.orm import joinedload
 
@@ -317,3 +321,215 @@ async def get_song_recommendations(
     except Exception as e:
         logger.error(f"Recommendation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
+
+
+# User-based recommendations endpoints
+@router.get("/recommend/user/{user_id}")
+async def get_user_recommendations(
+    user_id: int, top_k: int = 10, db: Session = Depends(get_db)
+):
+    """
+    Lấy khuyến nghị bài hát dựa trên lịch sử nghe nhạc của user
+    
+    Algorithm:
+    1. Lấy top 20 bài hát user đã nghe gần đây
+    2. Tính average audio vector và metadata vector
+    3. So sánh với tất cả bài hát trong database
+    4. Return top_k recommendations (không bao gồm bài hát đã nghe)
+    """
+    try:
+        start_time = time.time()
+
+        # Kiểm tra user tồn tại
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Lấy top 20 bài hát user đã nghe gần đây
+        user_history = (
+            db.query(UserHistory)
+            .filter(UserHistory.user_id == user_id)
+            .order_by(UserHistory.listened_at.desc())
+            .limit(20)
+            .all()
+        )
+
+        if not user_history:
+            return {
+                "user": {
+                    "user_id": user.user_id,
+                    "name": user.name or "Unknown",
+                },
+                "recommendations": [],
+                "processing_time": 0,
+                "message": "User has no listening history",
+            }
+
+        # Lấy embeddings từ các bài hát đã nghe
+        audio_vectors = []
+        metadata_vectors = []
+
+        for history in user_history:
+            song = (
+                db.query(Song)
+                .options(joinedload(Song.artist_rel))
+                .filter(Song.song_id == history.song_id)
+                .first()
+            )
+            if song:
+                if song.audio_vector:
+                    audio_vectors.append(
+                        np.array(json.loads(song.audio_vector))
+                    )
+                if song.metadata_vector:
+                    metadata_vectors.append(
+                        np.array(json.loads(song.metadata_vector))
+                    )
+
+        if not audio_vectors and not metadata_vectors:
+            return {
+                "user": {
+                    "user_id": user.user_id,
+                    "name": user.name or "Unknown",
+                },
+                "recommendations": [],
+                "processing_time": 0,
+                "message": "User's history has no embeddings",
+            }
+
+        # Tính average vector (user preference)
+        user_audio_pref = None
+        user_metadata_pref = None
+
+        if audio_vectors:
+            user_audio_pref = np.mean(audio_vectors, axis=0)
+
+        if metadata_vectors:
+            user_metadata_pref = np.mean(metadata_vectors, axis=0)
+
+        # Lấy tất cả bài hát có embedding
+        all_songs = (
+            db.query(Song)
+            .options(joinedload(Song.artist_rel))
+            .filter(Song.audio_vector.isnot(None) | Song.metadata_vector.isnot(None))
+            .all()
+        )
+
+        if not all_songs:
+            return {
+                "user": {
+                    "user_id": user.user_id,
+                    "name": user.name or "Unknown",
+                },
+                "recommendations": [],
+                "processing_time": 0,
+            }
+
+        recommendations = []
+        listened_song_ids = {h.song_id for h in user_history}
+
+        for song in all_songs:
+            # Không recommend bài hát user đã nghe
+            if song.song_id in listened_song_ids:
+                continue
+
+            # Độ tương tự âm thanh
+            audio_sim = 0.0
+            if user_audio_pref is not None and song.audio_vector:
+                try:
+                    song_audio = np.array(json.loads(song.audio_vector))
+                    audio_sim = cosine_similarity(user_audio_pref, song_audio)
+                except Exception as e:
+                    logger.warning(f"Error comparing audio vectors: {e}")
+
+            # Độ tương tự metadata
+            metadata_sim = 0.0
+            if user_metadata_pref is not None and song.metadata_vector:
+                try:
+                    song_metadata = np.array(json.loads(song.metadata_vector))
+                    metadata_sim = cosine_similarity(user_metadata_pref, song_metadata)
+                except Exception as e:
+                    logger.warning(f"Error comparing metadata vectors: {e}")
+
+            # Tính weighted score (60% audio, 40% metadata)
+            weighted_score = (audio_sim * 0.6) + (metadata_sim * 0.4)
+
+            # Thêm vào recommendations
+            if weighted_score > 0:
+                recommendations.append(
+                    {
+                        "song_id": song.song_id,
+                        "title": song.title,
+                        "artist": song.artist if song.artist else "Unknown",
+                        "score": float(weighted_score),
+                    }
+                )
+
+        # Sắp xếp theo điểm giảm dần và lấy top_k
+        recommendations.sort(key=lambda x: x["score"], reverse=True)
+        recommendations = recommendations[:top_k]
+
+        processing_time = time.time() - start_time
+
+        return {
+            "user": {
+                "user_id": user.user_id,
+                "name": user.name or "Unknown",
+            },
+            "recommendations": recommendations,
+            "processing_time": processing_time,
+            "listened_songs_count": len(user_history),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"User recommendation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
+
+
+@router.get("/recommend/user/{user_id}/top-songs")
+async def get_user_top_songs(
+    user_id: int, limit: int = 10, db: Session = Depends(get_db)
+):
+    """
+    Lấy top songs mà user đã nghe nhiều nhất
+    Hữu ích để debug user preference
+    """
+    try:
+        # Kiểm tra user tồn tại
+        user = db.query(User).filter(User.user_id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Lấy top songs user đã nghe
+        user_history = (
+            db.query(UserHistory)
+            .options(joinedload(UserHistory.song).joinedload(Song.artist_rel))
+            .filter(UserHistory.user_id == user_id)
+            .order_by(UserHistory.listened_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        top_songs = []
+        for history in user_history:
+            song = history.song
+            if song:
+                top_songs.append(
+                    {
+                        "song_id": song.song_id,
+                        "title": song.title,
+                        "artist": song.artist if song.artist else "Unknown",
+                        "listened_at": history.listened_at.isoformat() if history.listened_at else None,
+                        "action": history.action,
+                    }
+                )
+
+        return top_songs
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get user top songs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed: {str(e)}")

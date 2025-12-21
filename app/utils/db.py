@@ -75,6 +75,39 @@ class Song(Base):
         """Lấy tên nghệ sĩ từ relationship"""
         return self.artist_rel.name if self.artist_rel else "Unknown Artist"
 
+    # Relationship với UserHistory
+    user_histories = relationship("UserHistory", back_populates="song")
+
+
+class User(Base):
+    __tablename__ = "User"
+
+    user_id = Column("user_id", Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True, unique=True, index=True)
+    password_hash = Column(String(255), nullable=True)
+    role_id = Column(Integer, nullable=True)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationship với UserHistory
+    user_histories = relationship("UserHistory", back_populates="user")
+
+
+class UserHistory(Base):
+    __tablename__ = "UserHistory"
+
+    history_id = Column("history_id", Integer, primary_key=True, index=True)
+    user_id = Column("user_id", Integer, ForeignKey("User.user_id"), nullable=False)
+    song_id = Column("song_id", Integer, ForeignKey("Song.song_id"), nullable=False)
+    action = Column(String(50), nullable=True)  # PLAY, SKIP, LIKE
+    listened_at = Column(DateTime, nullable=True)
+    duration_listened = Column(Integer, nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="user_histories")
+    song = relationship("Song", back_populates="user_histories")
+
 
 def get_db():
     """Get database session"""
